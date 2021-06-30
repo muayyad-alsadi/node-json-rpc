@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "simple json rpc server and tools",
   "exports": {
-    ".": "./index.js",
+    ".": "./index.js"
   },
   "types": "./index.d.ts",
   "main": "index.js",
