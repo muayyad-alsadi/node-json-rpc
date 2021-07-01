@@ -4,11 +4,13 @@ export class MethodNotFound extends PageNotFound {
     constructor() {
         super();
         this.code = "method-not-found";
+        this.message = "Method not found";
+    }
+
+    finalize() {
         const method = (this.request||{}).rpc_method;
         if (method) {
             this.message = `Method [${method}] not found.`;
-        } else {
-            this.message = "Method not found";
         }
     }
 }

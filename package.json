@@ -1,6 +1,6 @@
 {
   "name": "@alsadi/json_rpc_server",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "simple json rpc server and tools",
   "exports": {
     ".": "./index.js"
@@ -18,7 +18,7 @@
     "dev": "rollup -c -w"
   },
   "dependencies": {
-    "@alsadi/simple_http_server": "0.0.3"
+    "@alsadi/simple_http_server": "0.0.7"
   },
   "private": false,
   "author": "alsadi@gmail.com",
