@@ -31,10 +31,10 @@ export class JsonRpcHttpServer extends SimpleHttpServer {
         const id = (error.request||{}).req_id;
         const code = error.code || error.constructor.name
         const message = error.message;
+        const validations = error.validations;
         const trace = (process.env["NODE_ENV"]!="production")?error.stack:null;
         const mime_type = "application/json";
-        // TODO: await to pass id, request details like uri ..etc.
-        const obj = {"jsonrpc": "2.0", "error": {code, message, trace}, "id": id};
+        const obj = {"jsonrpc": "2.0", "error": {code, message, validations, trace}, "id": id};
         const body = JSON.stringify(obj, "utf-8")+"\n";
         return {mime_type, body};
     }
@@ -67,12 +67,26 @@ export class JsonRpcHttpServer extends SimpleHttpServer {
         const [method_cb, validate] = cb_validate;
         if (validate) {
             try {
-                if (!validate(params)) {
+                const res = validate(params);
+                if (Array.isArray(res)) {
+                    console.log("*** res: ", res);
+                    const [is_valid, validations] = res;
                     // TODO: detaild message
+                    if (!is_valid) {
+                        const fields = Object.keys(validations).join(", ");
+                        const e = new HttpCodedError("prevalidate", `Validation error [${fields}] on method=[${method}].`, 400);
+                        e.validations = validations;
+                        throw e;
+                    }
+                } else if (res===false) {
                     throw new HttpCodedError("prevalidate", `Pre-validate for method=[${method}].`, 400);
                 }
             } catch (e) {
                 if (!e.http_code) e.http_code = 400;
+                if (!e.validations && typeof e.field == "string") {
+                    e.validations = {[e.field]: e.message};
+                    e.message = `Pre-validate for method=[${method}].`;
+                }
                 throw e;
             }
         }

@@ -11,7 +11,7 @@
   "scripts": {
     "lint": "eslint -c .eslintrc.json *.js lib/**/*.js",
     "lintfix": "eslint -c .eslintrc.json --fix *.js lib/**/*.js",
-    "test": "node --es-module-specifier-resolution=node --abort-on-uncaught-exception --unhandled-rejections=strict --trace-warnings ./test.js",
+    "demo": "node --es-module-specifier-resolution=node --abort-on-uncaught-exception --unhandled-rejections=strict --trace-warnings ./demo.js",
     "types": "tsc *.js lib/**/*.js --declaration --allowJs --emitDeclarationOnly --outFile index.d.ts",
     "repl": "node -r esm",
     "build": "rollup -c",
