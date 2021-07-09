@@ -1,8 +1,11 @@
 #! /usr/bin/env node
 import {JsonRpcHttpServer} from "@alsadi/json_rpc_server";
+import http from "http";
+import WebSocket from "ws";
 
 (async function() {
     const server = new JsonRpcHttpServer("rpc", ["assets", "index.html", "favicon.ico"], "./public");
+    const http_server = http.createServer((request, response)=>server.handle_w_errors(request, response));
     server.add_method("books.list", async function({page, per_page}) {
         per_page = per_page || 10;
         const items = [];
@@ -49,6 +52,7 @@ import {JsonRpcHttpServer} from "@alsadi/json_rpc_server";
             "topic_id": ["must be positive", "must be integer not float"],
         }];
     });
-
-    server.listen(8080);
+    const wss = new WebSocket.Server({server: http_server, path: "/ws"});
+    server.ws_attach(wss);
+    http_server.listen(8080);
 })();

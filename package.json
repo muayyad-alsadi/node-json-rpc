@@ -18,7 +18,8 @@
     "dev": "rollup -c -w"
   },
   "dependencies": {
-    "@alsadi/simple_http_server": "0.0.7"
+    "@alsadi/simple_http_server": "0.0.7",
+    "ws": "^7.5.2"
   },
   "private": false,
   "author": "alsadi@gmail.com",

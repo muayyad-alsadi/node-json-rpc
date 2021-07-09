@@ -1,6 +1,6 @@
 # JsonRpcServer
 
-A simple JSON-RPC implementation
+A simple JSON-RPC implementation that works via HTTP or WebSockets.
 
 ```shell
 npm install --save '@alsadi/json_rpc_server'
@@ -38,6 +38,10 @@ or simply, our extension
 curl -X POST -d '{"params":{"page":1, "per_page": 10}}' 'http://localhost:8080/rpc/books.list' | jq
 ```
 
+## Included Demo
+
+Type `npm run demo` which starts a server on port 8080 both HTTP and WebSocket.
+
 ## Validation
 
 adjust the code above to pass validate method that throws exceptions
@@ -63,14 +67,22 @@ server.add_method("books.list", books_list, books_list_validate);
 For validation you can:
 
 * Throw a coded exception (an exception with code property)
+  * you can use short cut like `FieldValidationError(field, msg)` or `ValidationError(validations, msg)`
 * return false with reasons of key being the param with a list of problems like this
 
 ```javascript
+throw new FieldValidationError("field1", "reason 1");
+throw new ValidationError({
+    "field1":["reason 1", "reason 2"],
+    "field2":["reason 3"],
+});
 return [false, {
     "page": ["required field is missing"],
     "per_page": ["should be in range 1-100"],
 }];
 ```
+
+## Automatic Validations
 
 You don't need to write validation yourself as you can generate validators from your code (TS type-hints or JS-Doc):
 
@@ -111,3 +123,75 @@ async function() {
     server.add_method(method_name, callback, validate);
 }
 ```
+
+## Interface Description Language (IDL)
+
+You can use JSON-Schema above as Interface Description Language (IDL) and generate OpenAPI/Swagger Automatically.
+Just generate url: `./public/build/swagger.json` that contains all the JSON schemas like this
+
+```javascript
+{
+  "openapi": "3.0.1",
+  "paths": {
+    "/books.list": {
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/books.list"}
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "JSON object",
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/generic"}
+            }
+          }
+        }
+      }
+    }
+  }
+},
+"components": {
+  "schemas": {
+      // ... GOES HERE
+  }
+}
+}
+```
+and use the generated file list this
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>JSON-RPC UI</title>
+  <link rel="stylesheet" type="text/css" href="http://unpkg.com/swagger-ui-dist@3.20.7/swagger-ui.css" >
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="http://unpkg.com/swagger-ui-dist@3/swagger-ui-bundle.js"></script>
+<script>
+var ui = SwaggerUIBundle({
+    url: "/build/swagger.json",
+    dom_id: '#swagger-ui'
+})
+</script>
+</body>
+</html>
+```
+
+
+## Extensions to JSON-RPC
+
+* `"jsonrpc": "2.0"` is optional, it's is just ignored
+* `"method"` in HTTP is optional, if missing it will be read from HTTP URL like this `/rpc/<METHOD>`. This helps using Swagger/OpenAPI/Postman. In WS method is manadatory.
+* When called the function recieves a second optional parameter called `ctx` (for context) containing the object returned by auth method, for example auth might read session cookie or basic auth head and based on that returns `{"user":{id, name, avatar, ...}}`. 
+* `"error"` object has the following properies beside `"code"` and `"message"`
+  * `level`: `string` optional defaults to `error` but can be set `warning` in case of non-code problem like validation errors.
+  * `trace`: `string`  which is the stack trace in non-production environment.
+  * `validations`: `Object<string, Array<string>>` in case of validation errors it contains a mapping of field names (properties) and their corresponding array of problems.
+

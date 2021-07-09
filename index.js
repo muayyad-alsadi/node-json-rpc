@@ -15,6 +15,40 @@ export class MethodNotFound extends PageNotFound {
     }
 }
 
+export class FieldValidationError extends HttpCodedError {
+    /**
+     * @constructor
+     * @param {string} field the name of the field
+     * @param {string} msg error reason for that field
+     * @param {string} code optional
+     */
+    constructor(field, msg, code) {
+        msg = msg || `Invalid value for field [${field}]`;
+        code = code || "field-validation";
+        super(code, msg, 400);
+        this.field = field;
+        this.level="warning";
+    }
+}
+
+export class ValidationError extends HttpCodedError {
+    /**
+     * @constructor
+     * @param {Object<string, Array<string>>} validations mapping between field names and list of reasons
+     * @param {string} msg optional
+     * @param {string} code optional
+     */
+    constructor(validations, msg=null, code="fields-validation") {
+        const fields_ls = Object.keys(validations)
+        const fields = fields_ls.join(", ");
+        msg = msg || ((fields_ls.length)?`Validation error on [${fields}]`:"Validation Error");
+        super(code, msg, 400);
+        this.validations = validations;
+        this.level="warning";
+    }
+}
+
+
 export class JsonRpcHttpServer extends SimpleHttpServer {
     constructor(rpc_uri, static_prefixes, static_dir) {
         super(static_prefixes, static_dir);
@@ -29,7 +63,7 @@ export class JsonRpcHttpServer extends SimpleHttpServer {
      */
     format_error(error) {
         const id = (error.request||{}).req_id;
-        const code = error.code || error.constructor.name
+        const code = error.code || error.constructor.name;
         const message = error.message;
         const validations = error.validations;
         const trace = (process.env["NODE_ENV"]!="production")?error.stack:null;
@@ -43,6 +77,75 @@ export class JsonRpcHttpServer extends SimpleHttpServer {
         this.methods[method_name] = [cb, validate];
     }
 
+    ws_attach(wss) {
+        const self = this;
+        wss.on("connection", function connection(ws) {
+            ws.on("message", async function incoming(message) {
+                let parsed;
+                try {
+                    parsed = JSON.parse(message);
+                } catch (e) {
+                    console.log(e);
+                    return;
+                }
+                const {method, params, id} = parsed;
+                let json_rpc_res;
+                // away to pass auth context
+                const res_promise = self.handle_parsed({method, params, id});
+                if (!id) return;
+                try {
+                    json_rpc_res = await res_promise;
+                } catch (error) {
+                    error.request = error.request || {};
+                    error.request.req_id = id;
+                    console.log(error, "to be send via ws");
+                    const formatted = self.format_error(error);
+                    console.log(formatted.body, "to be send via ws");
+                    ws.send(formatted.body);
+                    return;
+                }
+                console.log("sending: ...", json_rpc_res);
+                ws.send(JSON.stringify(json_rpc_res)+"\n");
+            });
+        });
+    }
+    async handle_parsed({method, params, id}, ctx) {
+        const self = this;
+        const cb_validate = self.methods[method];
+        if (!cb_validate) {
+            throw new MethodNotFound();
+        }
+        const [method_cb, validate] = cb_validate;
+        if (validate) {
+            try {
+                const res = validate(params);
+                if (Array.isArray(res)) {
+                    console.log("*** res: ", res);
+                    const [is_valid, validations] = res;
+                    // TODO: detaild message
+                    if (!is_valid) {
+                        const e = new ValidationError(validations);
+                        e.method = method;
+                        throw e;
+                    }
+                } else if (res===false) {
+                    const e = new ValidationError({});
+                    e.method = method;
+                    throw e;
+                }
+            } catch (e) {
+                e.method = method;
+                e.level = e.level || "warning";
+                e.http_code = e.http_code = 400;
+                if (!e.validations && typeof e.field == "string") {
+                    e.validations = {[e.field]: e.message};
+                }
+                throw e;
+            }
+        }
+        const res = await method_cb(params, ctx);
+        return {"jsonrpc": "2.0", "result": res, "id": id};
+    }
     async handle(request, response) {
         const self = this;
         const parts = request.uri_parts || [];
@@ -60,38 +163,7 @@ export class JsonRpcHttpServer extends SimpleHttpServer {
             }
         }
         request.rpc_method = method;
-        const cb_validate = self.methods[method];
-        if (!cb_validate) {
-            throw new MethodNotFound();
-        }
-        const [method_cb, validate] = cb_validate;
-        if (validate) {
-            try {
-                const res = validate(params);
-                if (Array.isArray(res)) {
-                    console.log("*** res: ", res);
-                    const [is_valid, validations] = res;
-                    // TODO: detaild message
-                    if (!is_valid) {
-                        const fields = Object.keys(validations).join(", ");
-                        const e = new HttpCodedError("prevalidate", `Validation error [${fields}] on method=[${method}].`, 400);
-                        e.validations = validations;
-                        throw e;
-                    }
-                } else if (res===false) {
-                    throw new HttpCodedError("prevalidate", `Pre-validate for method=[${method}].`, 400);
-                }
-            } catch (e) {
-                if (!e.http_code) e.http_code = 400;
-                if (!e.validations && typeof e.field == "string") {
-                    e.validations = {[e.field]: e.message};
-                    e.message = `Pre-validate for method=[${method}].`;
-                }
-                throw e;
-            }
-        }
-        const res = await method_cb(params, {user: request.user});
-        const json_rpc_res = {"jsonrpc": "2.0", "result": res, "id": id};
+        const json_rpc_res = await self.handle_parsed({method, params, id}, {user: request.user});
         response.writeHead(200, {"Content-Type": "application/json"});
         response.end(JSON.stringify(json_rpc_res, "utf-8")+"\n");
     }
