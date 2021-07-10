@@ -1,6 +1,9 @@
 # JsonRpcServer
 
-A simple JSON-RPC implementation that works via HTTP or WebSockets.
+A simple JSON-RPC implementation for [Node.js](http://nodejs.org/) that works via HTTP or WebSockets. You can get it via [npm install](https://www.npmjs.com/package/@alsadi/json_rpc_server).
+
+[![NPM](https://nodei.co/npm/@alsadi/json_rpc_server.png?downloads=true&downloadRank=true)](https://nodei.co/npm/@alsadi/json_rpc_server)
+
 
 ```shell
 npm install --save '@alsadi/json_rpc_server'
