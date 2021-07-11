@@ -98,13 +98,10 @@ export class JsonRpcHttpServer extends SimpleHttpServer {
                 } catch (error) {
                     error.request = error.request || {};
                     error.request.req_id = id;
-                    console.log(error, "to be send via ws");
                     const formatted = self.format_error(error);
-                    console.log(formatted.body, "to be send via ws");
                     ws.send(formatted.body);
                     return;
                 }
-                console.log("sending: ...", json_rpc_res);
                 ws.send(JSON.stringify(json_rpc_res)+"\n");
             });
         });
@@ -120,7 +117,6 @@ export class JsonRpcHttpServer extends SimpleHttpServer {
             try {
                 const res = validate(params);
                 if (Array.isArray(res)) {
-                    console.log("*** res: ", res);
                     const [is_valid, validations] = res;
                     // TODO: detaild message
                     if (!is_valid) {
@@ -136,14 +132,23 @@ export class JsonRpcHttpServer extends SimpleHttpServer {
             } catch (e) {
                 e.method = method;
                 e.level = e.level || "warning";
-                e.http_code = e.http_code = 400;
+                e.http_code = e.http_code || 400;
                 if (!e.validations && typeof e.field == "string") {
                     e.validations = {[e.field]: e.message};
                 }
                 throw e;
             }
         }
-        const res = await method_cb(params, ctx);
+        let res;
+        try {
+            res = await method_cb(params, ctx);
+        } catch(e) {
+            e.method = method;
+            if (!e.validations && typeof e.field == "string") {
+                e.validations = {[e.field]: e.message};
+            }
+            throw e;
+        }
         return {"jsonrpc": "2.0", "result": res, "id": id};
     }
     async handle(request, response) {

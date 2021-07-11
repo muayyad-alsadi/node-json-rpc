@@ -1,6 +1,6 @@
 {
   "name": "@alsadi/json_rpc_server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "simple json rpc server and tools",
   "exports": {
     ".": "./index.js"
